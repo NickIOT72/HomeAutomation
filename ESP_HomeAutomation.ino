@@ -17,12 +17,32 @@ ESP8266WebServer server(80);
 
 //Variables for the loop
 char InData[35];
-double Hum = 0;
-double Temp2 = 0;
-char ScrNumId[10];
+
+//Temp Variables
+float Hum = 0;
+float Temp2 = 0;
+//RGB Variables
+char RedNumId[5];
+char GreenNumId[5];
+char BlueNumId[5];
+char ModeNumId[3];
+//FanCooler var
+char StaNumId[2];
+char RotNumId[2];
+char SpdNumId[4];
+//Ultrasonic
+double cm, inches;
+//Door
+boolean DoorStatus = false;
+
+int SwitchScrren = 0;
+// Id Var
+char ScrNumId[3];
 int ScrNumIdInt = 0;
+
 uint8_t WdtCounter = 0;
-boolean AllowScreenSerial = false;
+uint8_t AllowSerial = 0;
+
 
 void handleNotFound() {
   String message = "File Not Found\n\n";
@@ -38,7 +58,6 @@ void handleNotFound() {
   }
   server.send(404, "text/plain", message);
 }
-
 
 void setup()
 {
@@ -80,13 +99,51 @@ void loop() {
     ESP.wdtFeed();*/
     WdtCounter = 0;
   }
-  if (AllowScreenSerial)
+  switch(AllowSerial)
   {
-    Serial.write("S");
-    Serial.write(":");
-    Serial.write(ScrNumId);
-    Serial.write(",");
-    AllowScreenSerial = false;
+    case 1:
+      Serial.write("S");
+      Serial.write(":");
+      Serial.write(ScrNumId);
+      Serial.write(",");
+      AllowSerial = 0;
+    break;
+    case 3:
+      Serial.write("R");
+      Serial.write(":");
+      Serial.write(RedNumId);
+      Serial.write(",");
+      Serial.write("G");
+      Serial.write(":");
+      Serial.write(GreenNumId);
+      Serial.write(",");
+      Serial.write("B");
+      Serial.write(":");
+      Serial.write(BlueNumId);
+      Serial.write(",");
+      Serial.write("M");
+      Serial.write(":");
+      Serial.write(ModeNumId);
+      Serial.write(",");
+      AllowSerial = 0;
+    break;
+    case 4:
+      Serial.write("J");
+      Serial.write(":");
+      Serial.write(StaNumId);
+      Serial.write(",");
+      Serial.write("D");
+      Serial.write(":");
+      Serial.write(RotNumId);
+      Serial.write(",");
+      Serial.write("F");
+      Serial.write(":");
+      Serial.write(SpdNumId);
+      Serial.write(",");
+      AllowSerial = 0;
+    break;
+    default:
+    break;
   }
 }
 
@@ -95,7 +152,7 @@ void DecodeSerialData()
 {
   for (int s = 0; s < 30; s++)
   {
-    if (InData[s] == 'H' || InData[s] == 'T')
+    if (InData[s] == 'S' || InData[s] == 'T' ||InData[s] == 'H' || InData[s] == 'R' || InData[s] == 'G' || InData[s] == 'B' || InData[s] == 'M' || InData[s] == 'F'|| InData[s] == 'D' || InData[s] == 'J' || InData[s] == 'C' || InData[s] == 'I' || InData[s] == 'Z')
     {
       String InData2 = "";
       int SetPoint = s;
@@ -105,17 +162,38 @@ void DecodeSerialData()
         InData2 += InData[s];
         s++;
       }
-      if (InData[SetPoint] == 'H')
+      if (InData[SetPoint] == 'S')
       {
-        Hum = InData2.toFloat();
+        SwitchScrren = InData2.toInt();
       }
       else if (InData[SetPoint] == 'T')
       {
         Temp2 = InData2.toFloat();
       }
-      s--;
+      else if (InData[SetPoint] == 'H')
+      {
+        Hum = InData2.toFloat();
+      }
+      else if (InData[SetPoint] == 'C')
+      {
+        cm = (InData2.toFloat());
+      }
+      else if (InData[SetPoint] == 'I')
+      {
+        inches = (InData2.toFloat());
+      }
+      else if (InData[SetPoint] == 'Z')
+      {
+        if (InData2 == "0")
+        {
+         DoorStatus = false; 
+         }
+        else if (InData2 == "1")
+        {
+          DoorStatus = true; 
+        }
+      }
     }
-    
   }
 }
 
@@ -165,6 +243,10 @@ void Initial()
 
   server.on("/", Local);
   server.on("/Temp",Temp);
+  server.on("/RGB", RGB);
+  server.on("/FanCooler", FanCooler);
+  server.on("/Door", Door);
+  server.on("/Ultrasonic", Ultrasonic);
   server.on("/ScreenNumber", ScreenNumber);
  
   server.onNotFound(handleNotFound);
@@ -196,8 +278,8 @@ void Temp()
     char DataCharHum[10];
     DataStrHum.toCharArray(10);*/
     
-    root["Temp"] = Temp2;
-    root["Hum"] = Hum;
+    root["Temp"] = double(Temp2);
+    root["Hum"] = double(Hum);
 
     char JSONmessageBuffer[100];
     for (int j = 0; j < sizeof(JSONmessageBuffer); j++)
@@ -243,7 +325,7 @@ void ScreenNumber()
 
   const char* ScrNum = root["ScreenNumber"];
   //Serial.println(ScrNum);
-  AllowScreenSerial = true;
+  AllowSerial = 1;
   if (ScrNum)
     {
       //Serial.print("Screen Number :");
@@ -251,7 +333,164 @@ void ScreenNumber()
       strcat(ScrNumId, "\0");
       //Serial.println(ScrNumId);
     }
+  server.send(200,"text/plain",ScrNum);
+  //Serial.begin(115200);
+}
+
+void RGB()
+{
+  StaticJsonBuffer<500> jsonBuffer;
+  String msg = server.arg("plain");
+  //Serial.println(msg);
+  
+  JsonObject& root = jsonBuffer.parseObject(msg);
+
+  //Serial.print("HTTP Method: ");
+  //Serial.println(server.method());
+
+  if (!root.success()) {
+      //Serial.println("parseObject() failed");
+      server.send(400,"text/plain","parseObject() failed");
+      return;
+    }
+
+  const char* RedNum = root["Red"];
+  const char* GreenNum = root["Green"];
+  const char* BlueNum = root["Blue"];
+  const char* ModeNum = root["Mode"];
+  //Serial.println(ScrNum);
+  AllowSerial = 3;
+  if (RedNum)
+    {
+      strcpy(RedNumId, RedNum);
+      strcat(RedNumId, "\0");
+      strcpy(GreenNumId, GreenNum);
+      strcat(GreenNumId, "\0");
+      strcpy(BlueNumId, BlueNum);
+      strcat(BlueNumId, "\0");
+      strcpy(ModeNumId, ModeNum);
+      strcat(ModeNumId, "\0");
+      
+    }
   server.send(200,"text/plain","OK");
+}
+
+void FanCooler()
+{
+  StaticJsonBuffer<500> jsonBuffer;
+  String msg = server.arg("plain");
+  //Serial.println(msg);
+  
+  JsonObject& root = jsonBuffer.parseObject(msg);
+
+  //Serial.print("HTTP Method: ");
+  //Serial.println(server.method());
+
+  if (!root.success()) {
+      //Serial.println("parseObject() failed");
+      server.send(400,"text/plain","parseObject() failed");
+      return;
+    }
+
+  const char* StaNum = root["Sta"];
+  const char* RotNum = root["Rot"];
+  const char* SpdNum = root["Spd"];
+  //Serial.println(ScrNum);
+  AllowSerial = 4;
+  if (StaNum)
+    {
+      strcpy(StaNumId, StaNum);
+      strcat(StaNumId, "\0");
+      strcpy(RotNumId, RotNum);
+      strcat(RotNumId, "\0");
+      strcpy(SpdNumId, SpdNum);
+      strcat(SpdNumId, "\0");
+    }
+  server.send(200,"text/plain","OK");
+}
+
+void Ultrasonic()
+{
+  //ESP.wdtFeed();
+  //Serial.end();
+  //Serial.print("HTTP Method: ");
+  //Serial.println(server.method());
+  String msg = "";
+
+    const size_t bufferSize = JSON_OBJECT_SIZE(100);
+    DynamicJsonBuffer jsonBuffer(bufferSize);
+    JsonObject &root = jsonBuffer.createObject();
+    /*String DataStrTemp = String(Temp2);
+    char DataCharTemp[10];
+    DataStrTemp.toCharArray(DataCharTemp,10);
+    
+    String DataStrHum = String(Hum);
+    char DataCharHum[10];
+    DataStrHum.toCharArray(10);*/
+    
+    root["CM"] = cm;
+    root["INCH"] = inches;
+
+    char JSONmessageBuffer[100];
+    for (int j = 0; j < sizeof(JSONmessageBuffer); j++)
+    {
+      JSONmessageBuffer[j] = 0;
+    }
+    root.prettyPrintTo(JSONmessageBuffer, sizeof(JSONmessageBuffer));
+    //Serial.println(JSONmessageBuffer);
+    for (int j = 0; j < sizeof(JSONmessageBuffer); j++)
+    {
+      msg += JSONmessageBuffer[j];
+    }
+  
+  server.send(200,"text/plain",msg);
+  //Serial.println(msg);
+  //Serial.begin(115200);
+}
+
+void Door()
+{
+  //ESP.wdtFeed();
+  //Serial.end();
+  //Serial.print("HTTP Method: ");
+  //Serial.println(server.method());
+  String msg = "";
+
+    const size_t bufferSize = JSON_OBJECT_SIZE(100);
+    DynamicJsonBuffer jsonBuffer(bufferSize);
+    JsonObject &root = jsonBuffer.createObject();
+    /*String DataStrTemp = String(Temp2);
+    char DataCharTemp[10];
+    DataStrTemp.toCharArray(DataCharTemp,10);
+    
+    String DataStrHum = String(Hum);
+    char DataCharHum[10];
+    DataStrHum.toCharArray(10);*/
+    int ABC = 1;
+    int ABCD = 0;
+    if (DoorStatus)
+    {
+      root["DoorStatus"] = double(ABC);
+    }
+    else if (!DoorStatus)
+    {
+      root["DoorStatus"] = double(ABCD);
+    }
+
+    char JSONmessageBuffer[100];
+    for (int j = 0; j < sizeof(JSONmessageBuffer); j++)
+    {
+      JSONmessageBuffer[j] = 0;
+    }
+    root.prettyPrintTo(JSONmessageBuffer, sizeof(JSONmessageBuffer));
+    //Serial.println(JSONmessageBuffer);
+    for (int j = 0; j < sizeof(JSONmessageBuffer); j++)
+    {
+      msg += JSONmessageBuffer[j];
+    }
+  
+  server.send(200,"text/plain",msg);
+  //Serial.println(msg);
   //Serial.begin(115200);
 }
 
