@@ -247,6 +247,7 @@ void DecodeSerialData()
       if (InData[SetPoint] == 'S')
       {
         SwitchScrren = InData2.toInt();
+        lcd.clear();
       }
       else if (InData[SetPoint] == 'T')
       {
@@ -258,15 +259,24 @@ void DecodeSerialData()
       }
       else if (InData[SetPoint] == 'R')
       {
-        REDPWM =int(InData2.toFloat());
+        REDPWM =InData2.toInt();
+        /*Serial.println("");
+        Serial.print("Red: ");
+        Serial.println(REDPWM);*/
       }
       else if (InData[SetPoint] == 'G')
       {
-        GREENPWM = int(InData2.toFloat());
+        GREENPWM = InData2.toInt();
+        /*Serial.println("");
+        Serial.print("Green: ");
+        Serial.println(GREENPWM);*/
       }
       else if (InData[SetPoint] == 'B')
       {
-        BLUEPWM = int(InData2.toFloat());
+        BLUEPWM = InData2.toInt();
+        /*Serial.println("");
+        Serial.print("Blue: ");
+        Serial.println(BLUEPWM);*/
       }
       else if (InData[SetPoint] == 'M')
       {
@@ -333,6 +343,7 @@ void ReadTemp()
   // Reading temperature or humidity takes about 250 milliseconds!
   if (TimerCounter % 10 == 0)
   {
+    lcd.clear();
     h = dht.readHumidity();
     t = dht.readTemperature();
     Serial.write("H:");
@@ -376,6 +387,7 @@ void UltrasonicMesh()
   
   if (TimerCounter % 10 == 0)
   {
+    lcd.clear();
     // The sensor is triggered by a HIGH pulse of 10 or more microseconds.
   // Give a short LOW pulse beforehand to ensure a clean HIGH pulse:
   digitalWrite(trigPin, LOW);
@@ -423,9 +435,9 @@ void UltrasonicMesh()
   }
   
     lcd.setCursor(0, 0); //At first row first column 
-    lcd.print("Ultrasonic"); //Print this
+    lcd.print("Dist: " + String(int(inches)) + " in   "); //Print this
     lcd.setCursor(0, 1); //At secound row first column 
-    lcd.print("Dist: " + String(int(cm)) + " cm   "); //Print this
+    lcd.print("      " + String(int(cm)) + " cm   "); //Print this
 }
 
 void DoorFunct()
@@ -473,17 +485,12 @@ void DoorFunct()
 
 void RGBData()
 {
-  if (AllowRGB)
+  analogWrite(PinRED, REDPWM);
+  analogWrite(PinGREEN, GREENPWM);
+  analogWrite(PinBLUE, BLUEPWM);
+  if (TimerCounter % 4 == 0)
   {
-    analogWrite(PinRED, REDPWM);
-    analogWrite(PinGREEN, GREENPWM);
-    analogWrite(PinBLUE, BLUEPWM);
-  }
-  else
-  {
-    analogWrite(PinRED, VerValor(REDPWM));
-    analogWrite(PinGREEN, VerValor(GREENPWM));
-    analogWrite(PinBLUE, VerValor(BLUEPWM));
+    lcd.clear();
   }
   lcd.setCursor(0, 0); //At first row first column 
   lcd.print("RGB COLOR"); //Print this
@@ -495,10 +502,9 @@ void RGBData()
   lcd.print(GREENPWM,HEX); //Print this
   lcd.setCursor(9, 1); //At secound row first column
   lcd.print(BLUEPWM,HEX); //Print this
-
 }
 
-boolean VerValor(int a)
+int VerValor(int a)
 {
   if (a == 0)
   {
@@ -549,21 +555,21 @@ void FanCoolerMov(boolean a , boolean b)
     if (b == false)
     {
       analogWrite(IN2, 0);
-      analogWrite(IN1, GainHor*FanSpeed);
+      analogWrite(IN1, 255/100*FanSpeed);
     }
     else if (b == true)
     {
       analogWrite(IN1, 0);
-      analogWrite(IN2, GainHor*FanSpeed);
+      analogWrite(IN2, 255/100*FanSpeed);
     }
   }
 
   lcd.setCursor(0, 0); //At first row first column 
   lcd.print("COOLER STA:" + ModeFAN(a)); //Print this
   lcd.setCursor(0, 1); //At secound row first column 
-  lcd.print("ROT:" + ModeFANHOR(b) + " FRE:   "); //Print this
+  lcd.print("ROT:" + ModeFANHOR(b) + " SPD:   "); //Print this
   lcd.setCursor(12, 1); //At secound row first column 
-  lcd.print(String(FanSpeed)); //Print this
+  lcd.print(String(FanSpeed) + "%"); //Print this
 }
 
 String ModeFAN(boolean c)
